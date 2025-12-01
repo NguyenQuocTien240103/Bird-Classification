@@ -20,17 +20,20 @@ class ImageService:
         self.num_classes = 152
 
         self.model_dir = os.path.join(os.getcwd(), "weights")
-        self.model_path = os.path.join(self.model_dir, "EfficientNetV2_Gridmask.pth")
+        self.model_path_1 = os.path.join(self.model_dir, "EfficientNetV2_Gridmask.pth")
+        self.model_path_2 = os.path.join(self.model_dir, "EfficientNetV2_mix_cut_grid.pth")
         self.class_names_path = os.path.join(os.getcwd(), "classes.txt")
-        self.model_url = os.getenv("MODEL_URL")
-        print(f"Model URL: {self.model_url}")
+        self.model_url_1 = os.getenv("MODEL_URL_1")
+        self.model_url_2 = os.getenv("MODEL_URL_2")
+        # print(f"Model URL: {self.model_url}")
 
         os.makedirs(self.model_dir, exist_ok=True)
 
         # ====== TẢI MODEL ======
-        if not os.path.exists(self.model_path):
+        if not os.path.exists(self.model_path_1) or not os.path.exists(self.model_path_2):
             print("Đang tải model từ Google Drive...")
-            gdown.download(self.model_url, self.model_path, quiet=False)
+            gdown.download(self.model_url_1, self.model_path_1, quiet=False)
+            gdown.download(self.model_url_2, self.model_path_2, quiet=False)
             print("Tải model thành công!")
 
         # ====== LOAD CLASS NAMES ======
@@ -40,22 +43,33 @@ class ImageService:
         with open(self.class_names_path, "r") as f:
             self.class_names = [line.strip() for line in f]
 
-        # ====== KHỞI TẠO MODEL ======
-        print("Đang khởi tạo EfficientNetV2...")
-        self.model = efficientnet_v2_s(weights=None)
-        self.model.classifier[1] = nn.Linear(
-            self.model.classifier[1].in_features, self.num_classes
+        # ====== KHỞI TẠO MODEL EfficientNetV2_Gridmask ======
+        print("Đang khởi tạo EfficientNetV2_Gridmask ...")
+        self.model_1 = efficientnet_v2_s(weights=None)
+        self.model_1.classifier[1] = nn.Linear(
+            self.model_1.classifier[1].in_features, self.num_classes
         )
-
         # ====== LOAD WEIGHTS ======
         print("Đang load trọng số...")
-        state_dict = torch.load(self.model_path, map_location=self.device)
-        self.model.load_state_dict(state_dict["model_state_dict"], strict=False)
+        state_dict = torch.load(self.model_path_1, map_location=self.device)
+        self.model_1.load_state_dict(state_dict["model_state_dict"], strict=False)
+        self.model_1 = self.model_1.to(self.device)
+        self.model_1.eval()
+        print("EfficientNetV2_Gridmask sẵn sàng!")
 
-        self.model = self.model.to(self.device)
-        self.model.eval()
-
-        print("EfficientNetV2 sẵn sàng!")
+        # ====== KHỞI TẠO MODEL EfficientNetV2_mix_cut_grid ======
+        print("Đang khởi tạo EfficientNetV2_Gridmask ...")
+        self.model_2 = efficientnet_v2_s(weights=None)
+        self.model_2.classifier[1] = nn.Linear(
+            self.model_2.classifier[1].in_features, self.num_classes
+        )
+        # ====== LOAD WEIGHTS ======
+        print("Đang load trọng số...")
+        state_dict = torch.load(self.model_path_2, map_location=self.device)
+        self.model_2.load_state_dict(state_dict["model_state_dict"], strict=False)
+        self.model_2 = self.model_2.to(self.device)
+        self.model_2.eval()
+        print("EfficientNetV2_mix_cut_grid sẵn sàng!")
 
         # ====== TRANSFORM ======
         self.transform = transforms.Compose([
@@ -73,21 +87,47 @@ class ImageService:
         # print("YOLO sẵn sàng!")
 
     # ---------------------------------------------------------
-    # ========== PHÂN LOẠI ẢNH LẺ ==========
+    # ========== PHÂN LOẠI ẢNH LẺ  ==========
+    # ---------------------------------------------------------
+    # async def detect_image(self, file_bytes: bytes):
+    #     img = Image.open(BytesIO(file_bytes)).convert("RGB")
+    #     img_tensor = self.transform(img).unsqueeze(0).to(self.device)
+
+    #     with torch.no_grad():
+    #         outputs = self.model(img_tensor)
+    #         probs = torch.softmax(outputs, dim=1)
+    #         pred_idx = torch.argmax(probs, dim=1).item()
+
+    #     return {
+    #         "predicted_class": self.class_names[pred_idx],
+    #         "probability": float(probs[0][pred_idx])
+    #     }
+
+    # ---------------------------------------------------------
+    # ========== PHÂN LOẠI ẢNH LẺ Ensemble  ==========
     # ---------------------------------------------------------
     async def detect_image(self, file_bytes: bytes):
 
         img = Image.open(BytesIO(file_bytes)).convert("RGB")
         img_tensor = self.transform(img).unsqueeze(0).to(self.device)
-
+        models = [self.model_1, self.model_2]
+ 
         with torch.no_grad():
-            outputs = self.model(img_tensor)
-            probs = torch.softmax(outputs, dim=1)
-            pred_idx = torch.argmax(probs, dim=1).item()
+            prods_sum = None
+            for m in models:
+                m.eval()
+                logits = m(img_tensor)
+                prods = torch.softmax(logits, dim=1)
+                prods_sum = prods if prods_sum is None else prods_sum + prods
+            # print("prods_sum:", prods_sum)
+            final_probs = prods_sum / len(models)
+            conf, pred_idx = torch.max(final_probs, dim=1)
+        predicted_class_name = self.class_names[pred_idx]
+        confidence_value = conf.item()*100
 
         return {
-            "predicted_class": self.class_names[pred_idx],
-            "probability": float(probs[0][pred_idx])
+            "predicted_class": predicted_class_name,
+            "probability": confidence_value
         }
 
     # ---------------------------------------------------------
