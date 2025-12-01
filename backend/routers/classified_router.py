@@ -13,12 +13,12 @@ async def get_answer(
         # Trường hợp: chỉ có file
         if file and not message:
             file_bytes = await file.read()
-            result = await image_service.detect_and_classify(file_bytes)
+            result = await image_service.detect_image(file_bytes)
             return {
                 "message": "Image processed successfully",
-                # "prediction": result["predicted_class"],
-                # "probability": result["probability"]
-                "file": result["output_image_path"]
+                "prediction": result["predicted_class"],
+                "probability": result["probability"]
+                # "file": result["output_image_path"]
             }
         # Trường hợp không có gì
         else:

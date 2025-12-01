@@ -8,7 +8,7 @@ from io import BytesIO
 import cv2
 import numpy as np
 import gdown
-from ultralytics import YOLO
+# from ultralytics import YOLO
 import uuid
 from dotenv import load_dotenv
 
@@ -68,9 +68,9 @@ class ImageService:
         ])
 
         # ====== LOAD YOLO ======
-        print("Đang load YOLOv8 nano...")
-        self.yolo = YOLO("yolov8n.pt")
-        print("YOLO sẵn sàng!")
+        # print("Đang load YOLOv8 nano...")
+        # self.yolo = YOLO("yolov8n.pt")
+        # print("YOLO sẵn sàng!")
 
     # ---------------------------------------------------------
     # ========== PHÂN LOẠI ẢNH LẺ ==========
@@ -93,58 +93,58 @@ class ImageService:
     # ---------------------------------------------------------
     # ========== YOLO + PHÂN LOẠI ==========
     # ---------------------------------------------------------
-    async def detect_and_classify(self, file_bytes: bytes):
+    # async def detect_and_classify(self, file_bytes: bytes):
 
-        # ===== Decode ảnh =====
-        np_arr = np.frombuffer(file_bytes, np.uint8)
-        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    #     # ===== Decode ảnh =====
+    #     np_arr = np.frombuffer(file_bytes, np.uint8)
+    #     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        if img is None:
-            raise RuntimeError("Không thể decode ảnh!")
+    #     if img is None:
+    #         raise RuntimeError("Không thể decode ảnh!")
 
-        results = self.yolo(img)[0]
+    #     results = self.yolo(img)[0]
 
-        # ===== Lặp qua từng detection =====
-        for box in results.boxes:
+    #     # ===== Lặp qua từng detection =====
+    #     for box in results.boxes:
 
-            cls_id = int(box.cls[0])
-            label_name = results.names[cls_id]
+    #         cls_id = int(box.cls[0])
+    #         label_name = results.names[cls_id]
 
-            if label_name.lower() != "bird":
-                continue
+    #         if label_name.lower() != "bird":
+    #             continue
 
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
+    #         x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-            crop = img[y1:y2, x1:x2]
-            crop_pil = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
+    #         crop = img[y1:y2, x1:x2]
+    #         crop_pil = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
 
-            buf = BytesIO()
-            crop_pil.save(buf, format="JPEG")
-            buf.seek(0)
+    #         buf = BytesIO()
+    #         crop_pil.save(buf, format="JPEG")
+    #         buf.seek(0)
 
-            result = await self.detect_image(buf.getvalue())
+    #         result = await self.detect_image(buf.getvalue())
 
-            prob = result["probability"]
-            pred_class = result["predicted_class"]
+    #         prob = result["probability"]
+    #         pred_class = result["predicted_class"]
 
-            # if prob < 0.5:
-            #     continue
+    #         # if prob < 0.5:
+    #         #     continue
 
-            text = f"{pred_class} {prob*100:.1f}%"
+    #         text = f"{pred_class} {prob*100:.1f}%"
 
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(img, text, (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+    #         cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    #         cv2.putText(img, text, (x1, y1 - 10),
+    #                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-        # ===== LƯU ẢNH OUTPUT =====
-        output_dir = "static"
-        os.makedirs(output_dir, exist_ok=True)
-        random_filename = f"{uuid.uuid4().hex}.jpg"
-        output_path = os.path.join(output_dir, random_filename)
-        cv2.imwrite(output_path, img)
+    #     # ===== LƯU ẢNH OUTPUT =====
+    #     output_dir = "static"
+    #     os.makedirs(output_dir, exist_ok=True)
+    #     random_filename = f"{uuid.uuid4().hex}.jpg"
+    #     output_path = os.path.join(output_dir, random_filename)
+    #     cv2.imwrite(output_path, img)
 
-        print(f"Ảnh kết quả đã lưu tại: {output_path}")
+    #     print(f"Ảnh kết quả đã lưu tại: {output_path}")
 
-        return {
-            "output_image_path": output_path
-        }
+    #     return {
+    #         "output_image_path": output_path
+    #     }
